@@ -87,7 +87,7 @@ fn extract_year_of_birth(text: &str) -> Option<i32> {
     None
 }
 
-fn send_message(user_id: &str, text: &str, channel: &str, cli: &RtmClient) {
+fn send_message(_user_id: &str, text: &str, channel: &str, cli: &RtmClient) {
     let message = cli.sender().send_message(channel, text);
     if let Err(err) = message {
         println!("Error sending message: {:?}", err);
