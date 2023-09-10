@@ -1,52 +1,81 @@
-use slack::api::{Message, MessageStandard};
-use slack::RtmClient;
+extern crate slack;
+extern crate chrono;
 
-fn main() {
-    // Replace "YOUR_BOT_TOKEN" with your actual Slack bot token.
-    let bot_token = "xoxb-5895096432432-5895113839584-KoyNljkVfTtXZ3Y2SpbOusxr";
+use chrono::Utc;
+use chrono::NaiveDate;
+use slack::{Event, EventHandler, Message, RtmClient};
 
-    let mut client = RtmClient::new(bot_token);
+pub struct Handler;
 
-    match client {
-        Ok(mut rtm_client) => {
-            rtm_client.connect().unwrap();
+#[allow(unused_variables)]
+impl EventHandler for Handler {
+    fn on_event(&mut self, cli: &RtmClient, event: Event) {
+        println!("on_event(event: {:?})", event);
 
-            loop {
-                match rtm_client.recv() {
-                    Ok(event) => {
-                        match event {
-                            slack::Event::Message(message) => {
-                                if let Some(text) = message.text {
-                                    if text.contains("/age") {
-                                        if let Some(channel_id) = message.channel {
-                                            // Parse the year of birth from the message content.
-                                            if let Some(year_str) = text.split_whitespace().nth(1) {
-                                                if let Ok(year_of_birth) = year_str.parse::<i32>() {
-                                                    // Calculate age and send a response.
-                                                    let current_year = 2023;
-                                                    let age = current_year - year_of_birth;
-                                                    let response = format!("Your age is {}", age);
+        match event.clone() {
+            Event::Message(message) => self.handle_message(*message, cli, &event),
+            _ => return,
+        };
+    }
 
-                                                    // Send the response back to the same channel.
-                                                    rtm_client
-                                                        .sender()
-                                                        .send_message(&channel_id, &response)
-                                                        .unwrap();
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                    Err(_) => {}
-                }
+    fn on_close(&mut self, _cli: &RtmClient) {
+        println!("on_close");
+    }
+
+    fn on_connect(&mut self, _cli: &RtmClient) {
+        println!("on_connect");
+    }
+}
+
+#[allow(unused_variables)]
+impl Handler {
+    fn handle_message(&mut self, message: Message, cli: &RtmClient, _event: &Event) {
+        let message_standard = match message {
+            Message::Standard(message_standard) => message_standard,
+            _ => return,
+        };
+        let channel: String = message_standard.channel.unwrap();
+        let user_id: String = message_standard.user.unwrap();
+        let text: String = message_standard.text.unwrap();
+
+        if !text.contains(&cli.start_response().slf.as_ref().unwrap().id.as_ref().unwrap()) {
+            println!("Is not a mention");
+            return;
+        }
+
+        let current_year = Utc::now().year();
+        let birth_year = match extract_year_of_birth(&text) {
+            Some(year) => year,
+            None => {
+                println!("Invalid year of birth format");
+                return;
+            }
+        };
+
+        let age = current_year - birth_year;
+
+        let response = format!("Your age is {} years.", age);
+        send_message(&user_id, &response, &channel, &cli);
+    }
+}
+
+fn extract_year_of_birth(text: &str) -> Option<i32> {
+    let words: Vec<&str> = text.split_whitespace().collect();
+
+    for word in words {
+        if let Ok(year) = word.parse::<i32>() {
+            if year >= 1900 && year <= Utc::now().year() {
+                return Some(year);
             }
         }
-        Err(err) => {
-            eprintln!("Error: {:?}", err);
-        }
+    }
+
+    None
+}
+
+fn send_message(user_id: &str, text: &str, channel: &str, cli: &RtmClient) {
+    let message = cli.send_message(channel, text);
+    if let Err(err) = message {
+        println!("Error sending message: {:?}", err);
     }
 }
