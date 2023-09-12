@@ -4,6 +4,8 @@ extern crate dotenv;
 
 use slack::{Event, EventHandler, Message, RtmClient};
 use dotenv::dotenv;
+// use slack::rtm::RtmClient;
+
 
 fn main() {
     dotenv().ok();
